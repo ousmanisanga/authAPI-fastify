@@ -1,0 +1,126 @@
+import fastify from 'fastify';
+import env from 'dotenv';
+import fp from 'fastify-plugin';
+import mongoose from 'mongoose';
+import User from '../models/user';
+import db from './config/index';
+import user from '../src/routes/user';
+const models = { User};
+
+env.config();
+
+const Port = process.env.PORT;
+const uri = process.env.MONGODB_URI;
+
+const app = fastify({ logger: true });
+// Activate plugins below:
+app.register(db, { uri });
+app.register(user);
+// create server
+const start = async () => {
+    try {
+        await app.listen(Port);
+    } catch (err) {
+        app.log.error(err);
+        process.exit(1);
+    }
+};
+start(); 
+// connexion a la base de donnee 
+const ConnectDB = async (fastify, options) => {
+    try {
+        mongoose.connection.on('connected', () => {
+            fastify.log.info({ actor: 'MongoDB' }, 'connected');
+            console.log("connected to database")
+        });
+        mongoose.connection.on('disconnected', () => {
+            fastify.log.error({ actor: 'MongoDB' }, 'disconnected');
+            console.log("fail connection");
+        });
+        const db = await mongoose.connect(options.uri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            useCreateIndex: true
+        });
+        // decorates fastify with our model
+        fastify.decorate('db', { models });
+    } catch (error) {
+        console.error(error);
+    }
+};
+export default fp(ConnectDB);
+
+
+
+
+
+
+
+
+#########################################################################################################
+import fastify from 'fastify';
+import env from 'dotenv';
+import fp from 'fastify-plugin';
+import mongoose from 'mongoose';
+import User from '../models/user';
+import db from '../src/config/index'; // Vérifiez le chemin du fichier de configuration
+import user from '../src/routes/user';
+
+const models = { User };
+
+env.config();
+
+const Port = process.env.PORT || 3000; // Définissez une valeur par défaut pour le port
+const uri = process.env.MONGODB_URI;
+
+const app = fastify({ logger: true });
+
+// Connexion à la base de données
+const ConnectDB = async () => {
+    try {
+        await mongoose.connect(uri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            useCreateIndex: true
+        });
+
+        mongoose.connection.on('connected', () => {
+            app.log.info({ actor: 'MongoDB' }, 'connected');
+            console.log("connected to database")
+        });
+
+        mongoose.connection.on('disconnected', () => {
+            app.log.error({ actor: 'MongoDB' }, 'disconnected');
+            console.log("fail connection");
+        });
+
+        // Décorer fastify avec notre modèle
+        app.decorate('db', { models });
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+// Enregistrement des plugins
+const registerPlugins = async () => {
+    try {
+        await app.register(db, { uri }); // Enregistrez le plugin de base de données
+        await app.register(user); // Enregistrez les routes utilisateur
+    } catch (err) {
+        console.error(err);
+    }
+};
+
+// Démarrage du serveur
+const start = async () => {
+    await ConnectDB(); // Connectez-vous à la base de données
+    await registerPlugins(); // Enregistrez les plugins
+    try {
+        await app.listen(Port);
+    } catch (err) {
+        app.log.error(err);
+        process.exit(1);
+    }
+};
+
+start();
